@@ -72,7 +72,8 @@ jobs:
         run: |
           if [ -f "Gemfile" ]; then
             gem install bundler
-            bundle install --path vendor/bundle
+            bundle config set --local path 'vendor/bundle'
+            bundle install
           else
             brew install fastlane
           fi
