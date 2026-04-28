@@ -19,10 +19,17 @@ platform :ios do
 
   desc "Run tests"
   lane :test do
+    destination =
+      if ENV["SIMULATOR_UDID"] && !ENV["SIMULATOR_UDID"].empty?
+        "platform=iOS Simulator,id=#{ENV['SIMULATOR_UDID']}"
+      else
+        "platform=iOS Simulator,name=iPhone 16"
+      end
+
     run_tests(
       scheme: "CICDDemoApp",
       clean: true,
-      devices: ["iPhone 15"],
+      destination: destination,
       output_directory: "fastlane/test_output",
       output_types: "junit"
     )
