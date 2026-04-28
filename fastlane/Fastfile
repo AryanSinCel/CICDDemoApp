@@ -27,11 +27,13 @@ platform :ios do
       end
 
     run_tests(
+      project: "CICDDemoApp.xcodeproj",
       scheme: "CICDDemoApp",
       clean: true,
       destination: destination,
       output_directory: "fastlane/test_output",
-      output_types: "junit"
+      output_types: "junit",
+      xcargs: "CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
     )
   end
 

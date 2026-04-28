@@ -23,20 +23,40 @@ jobs:
         run: |
           set -euo pipefail
           UDID=$(xcrun simctl list devices --json | python3 -c "
-          import json, sys
+          import json, re, sys
           data = json.load(sys.stdin)
-          for runtime, devices in data.get(\"devices\", {}).items():
-              if \"iOS\" not in runtime:
+
+          def ios_version(runtime_key):
+              m = re.search(r'iOS-(\\d+)(?:-(\\d+))?', runtime_key)
+              if not m:
+                  return (-1, -1)
+              major = int(m.group(1))
+              minor = int(m.group(2)) if m.group(2) else 0
+              return (major, minor)
+
+          # Newest iOS runtime first (app targets iOS 18.2; old runtimes cannot run it).
+          runtimes = sorted(
+              data.get('devices', {}).items(),
+              key=lambda kv: ios_version(kv[0]),
+              reverse=True,
+          )
+          for runtime, devices in runtimes:
+              if 'iOS' not in runtime:
+                  continue
+              if ios_version(runtime) < (18, 0):
                   continue
               for d in devices:
-                  if d.get(\"isAvailable\") and d.get(\"name\", \"\").startswith(\"iPhone\"):
-                      print(d[\"udid\"])
+                  if d.get('isAvailable') and d.get('name', '').startswith('iPhone'):
+                      print(d['udid'])
                       sys.exit(0)
-          print(\"No available iPhone simulator found\", file=sys.stderr)
+          print('No available iPhone simulator on iOS 18+', file=sys.stderr)
           sys.exit(1)
           ")
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
           echo "Using simulator UDID=$UDID"
+
+      - name: Boot simulator
+        run: xcrun simctl boot "${SIMULATOR_UDID}" || true
 
       # 3. Cache Ruby gems (speeds up Fastlane)
       - name: Cache Ruby Gems
