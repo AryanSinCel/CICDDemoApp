@@ -1,4 +1,4 @@
-name: iOS CI Pipeline
+name: iOS CI with Fastlane
 
 on:
   push:
@@ -10,50 +10,38 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      # 1. Checkout repo
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
+      # 2. Select Xcode (optional but safe)
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      # 3. Cache Ruby gems (speeds up Fastlane)
+      - name: Cache Ruby Gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
 
-      - name: Resolve iOS Simulator
+      # 4. Install Fastlane (via bundler if possible)
+      - name: Install Fastlane
         run: |
-          set -euo pipefail
-          UDID=$(xcrun simctl list devices --json | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data.get(\"devices\", {}).items():
-              if \"iOS\" not in runtime:
-                  continue
-              for d in devices:
-                  if d.get(\"isAvailable\") and d.get(\"name\", \"\").startswith(\"iPhone\"):
-                      print(d[\"udid\"])
-                      sys.exit(0)
-          print(\"No available iPhone simulator found\", file=sys.stderr)
-          sys.exit(1)
-          ")
-          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
-          echo "Using simulator UDID=$UDID"
+          if [ -f "Gemfile" ]; then
+            gem install bundler
+            bundle install --path vendor/bundle
+          else
+            brew install fastlane
+          fi
 
-      - name: Build app (No Code Signing)
+      # 5. Run Fastlane CI lane
+      - name: Run Fastlane CI
         run: |
-          xcodebuild clean build \
-          -project CICDDemoApp.xcodeproj \
-          -scheme CICDDemoApp \
-          -destination "platform=iOS Simulator,id=${SIMULATOR_UDID}" \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
-
-      - name: Run tests
-        run: |
-          xcodebuild test \
-          -project CICDDemoApp.xcodeproj \
-          -scheme CICDDemoApp \
-          -destination "platform=iOS Simulator,id=${SIMULATOR_UDID}" \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
+          if [ -f "Gemfile" ]; then
+            bundle exec fastlane ci
+          else
+            fastlane ci
+          fi
